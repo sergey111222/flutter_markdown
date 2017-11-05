@@ -91,7 +91,11 @@ class MarkdownBuilder implements md.NodeVisitor {
 
     for (md.Node node in nodes) {
       assert(_blocks.length == 1);
-      node.accept(this);
+      try {
+        node.accept(this);
+      } catch(_) {
+        return [];
+      }
     }
 
     assert(_inlines.single.children.isEmpty);
