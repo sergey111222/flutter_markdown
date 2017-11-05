@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -104,7 +105,7 @@ class MarkdownBuilder implements md.NodeVisitor {
     final TextSpan span = _blocks.last.tag == 'pre'
       ? delegate.formatText(styleSheet, text.text)
       : new TextSpan(
-          text: text.text,
+          text: text.text.replaceAll('&amp;', '&'),
           recognizer: _linkHandlers.isNotEmpty ? _linkHandlers.last : null,
         );
     _inlines.last.children.add(span);
@@ -229,7 +230,7 @@ class MarkdownBuilder implements md.NodeVisitor {
     final int index = _blocks.last.nextListIndex;
     return new Padding(
       padding: const EdgeInsets.only(right: 5.0),
-      child: new Text('${index + 1}.', textAlign: TextAlign.right),
+      child: new Text('${index + 1}.', textAlign: TextAlign.right, softWrap: false,),
     );
   }
 
@@ -242,6 +243,10 @@ class MarkdownBuilder implements md.NodeVisitor {
   }
 
   void _addAnonymousBlockIfNeeded(TextStyle style) {
+    if (style == null) {
+      style = styleSheet.p;
+    }
+
     final _InlineElement inline = _inlines.single;
     if (inline.children.isNotEmpty) {
       final TextSpan span = new TextSpan(style: style, children: inline.children);
