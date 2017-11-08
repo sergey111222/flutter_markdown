@@ -163,6 +163,29 @@ void main() {
       expect(tapResults, orderedEquals(['firstHref', 'secondHref']));
     });
   });
+  
+  testWidgets('Image links', (WidgetTester tester) async {
+    await tester
+        .pumpWidget(_boilerplate(const Markdown(data: '![alt](img#50x50)')));
+
+    final Image image =
+      tester.allWidgets.firstWhere((Widget widget) => widget is Image);
+    final NetworkImage networkImage = image.image;
+    expect(networkImage.url, 'img');
+    expect(image.width, 50);
+    expect(image.height, 50);
+  });
+
+  testWidgets('Image text', (WidgetTester tester) async {
+    await tester
+        .pumpWidget(_boilerplate(const Markdown(data: 'Hello ![alt](img#50x50)')));
+
+    final RichText richText =
+      tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
+    TextSpan textSpan = richText.text;
+    expect(textSpan.children[0].text, 'Hello ');
+    expect(textSpan.style, isNotNull);
+  });
 
   testWidgets('HTML tag ignored ', (WidgetTester tester) async {
     final List<String> mdData = <String>[
