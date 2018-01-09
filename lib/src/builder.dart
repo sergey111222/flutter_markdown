@@ -136,7 +136,11 @@ class MarkdownBuilder implements md.NodeVisitor {
       ? delegate.formatText(styleSheet, text.text)
       : new TextSpan(
           style: _inlines.last.style,
-          text: text.text.replaceAll('&amp;', '&'),
+          text: text.text
+            .replaceAll('&amp;', '&')
+            .replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>')
+            .replaceAll('&quot;', '"'),
           recognizer: _linkHandlers.isNotEmpty ? _linkHandlers.last : null,
         );
 
