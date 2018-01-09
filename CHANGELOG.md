@@ -1,3 +1,13 @@
+## 0.1.2
+
+* Fix the `onTap` callback on images nested in hyperlinks
+
+## 0.1.1
+
+* Add support for local file paths in image links. Make sure to set the
+  `imageDirectory` property to specify the base directory containing the image
+  files.
+
 ## 0.1.0
 
 * Roll the dependency on `markdown` to 1.0.0

@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show createHttpClient;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http;
 
 void main() {
   TextTheme textTheme = new Typography(platform: TargetPlatform.android)
@@ -18,7 +21,7 @@ void main() {
 
     final Iterable<Widget> widgets = tester.allWidgets;
     _expectWidgetTypes(
-        widgets, <Type>[Directionality, MarkdownBody, Column, RichText]);
+        widgets, <Type>[Directionality, MarkdownBody, Column, Wrap, RichText]);
     _expectTextStrings(widgets, <String>['Hello']);
   });
 
@@ -27,7 +30,7 @@ void main() {
 
     final Iterable<Widget> widgets = tester.allWidgets;
     _expectWidgetTypes(
-        widgets, <Type>[Directionality, MarkdownBody, Column, RichText]);
+        widgets, <Type>[Directionality, MarkdownBody, Column, Wrap, RichText]);
     _expectTextStrings(widgets, <String>['Header']);
   });
 
@@ -86,7 +89,7 @@ void main() {
   });
 
   group('Links', () {
-    testWidgets('Single link', (WidgetTester tester) async {
+    testWidgets('should be tappable', (WidgetTester tester) async {
       String tapResult;
       await tester.pumpWidget(_boilerplate(new Markdown(
         data: '[Link Text](href)',
@@ -97,16 +100,14 @@ void main() {
           tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
       final TextSpan span = textWidget.text;
 
-      (span.children[0].children[0].recognizer as TapGestureRecognizer).onTap();
+      (span.recognizer as TapGestureRecognizer).onTap();
 
-      expect(span.children.length, 1);
-      expect(span.children[0].children.length, 1);
-      expect(span.children[0].children[0].recognizer.runtimeType,
-          equals(TapGestureRecognizer));
+      expect(span.children, null);
+      expect(span.recognizer.runtimeType, equals(TapGestureRecognizer));
       expect(tapResult, 'href');
     });
 
-    testWidgets('Link with nested code', (WidgetTester tester) async {
+    testWidgets('should work with nested elements', (WidgetTester tester) async {
       final List<String> tapResults = <String>[];
       await tester.pumpWidget(_boilerplate(new Markdown(
         data: '[Link `with nested code` Text](href)',
@@ -125,14 +126,14 @@ void main() {
         return true;
       });
 
-      expect(span.children.length, 1);
-      expect(span.children[0].children.length, 3);
+      expect(span.children.length, 3);
+      expect(gestureRecognizerTypes.length, 3);
       expect(gestureRecognizerTypes, everyElement(TapGestureRecognizer));
       expect(tapResults.length, 3);
       expect(tapResults, everyElement('href'));
     });
 
-    testWidgets('Multiple links', (WidgetTester tester) async {
+    testWidgets('should work next to other links', (WidgetTester tester) async {
       final List<String> tapResults = <String>[];
 
       await tester.pumpWidget(_boilerplate(new Markdown(
@@ -152,39 +153,163 @@ void main() {
         return true;
       });
 
-
       expect(span.children.length, 3);
-      expect(span.children[0].children.length, 1);
-      expect(span.children[1].children, null);
-      expect(span.children[2].children.length, 1);
-
       expect(gestureRecognizerTypes,
           orderedEquals([TapGestureRecognizer, Null, TapGestureRecognizer]));
       expect(tapResults, orderedEquals(['firstHref', 'secondHref']));
     });
   });
   
-  testWidgets('Image links', (WidgetTester tester) async {
-    await tester
-        .pumpWidget(_boilerplate(const Markdown(data: '![alt](img#50x50)')));
+  group('Images', () {
+    setUpAll(() {
+      createHttpClient = createMockImageHttpClient;
+    });
 
-    final Image image =
-      tester.allWidgets.firstWhere((Widget widget) => widget is Image);
-    final NetworkImage networkImage = image.image;
-    expect(networkImage.url, 'img');
-    expect(image.width, 50);
-    expect(image.height, 50);
-  });
+    testWidgets('should not interupt styling', (WidgetTester tester) async {
+      await tester.pumpWidget(_boilerplate(const Markdown(
+        data:'_textbefore ![alt](http://img) textafter_',
+      )));
 
-  testWidgets('Image text', (WidgetTester tester) async {
-    await tester
-        .pumpWidget(_boilerplate(const Markdown(data: 'Hello ![alt](img#50x50)')));
+      final RichText firstTextWidget =
+          tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
+      final Image image =
+          tester.allWidgets.firstWhere((Widget widget) => widget is Image);
+      final NetworkImage networkImage = image.image;
+      final RichText secondTextWidget =
+          tester.allWidgets.lastWhere((Widget widget) => widget is RichText);
 
-    final RichText richText =
-      tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
-    TextSpan textSpan = richText.text;
-    expect(textSpan.children[0].text, 'Hello ');
-    expect(textSpan.style, isNotNull);
+      expect(firstTextWidget.text.text, 'textbefore ');
+      expect(firstTextWidget.text.style.fontStyle, FontStyle.italic);
+      expect(networkImage.url,'http://img');
+      expect(secondTextWidget.text.text, ' textafter');
+      expect(secondTextWidget.text.style.fontStyle, FontStyle.italic);
+    });
+
+    testWidgets('should work with a link', (WidgetTester tester) async {
+      await tester
+          .pumpWidget(_boilerplate(const Markdown(data: '![alt](https://img#50x50)')));
+
+      final Image image =
+        tester.allWidgets.firstWhere((Widget widget) => widget is Image);
+      final NetworkImage networkImage = image.image;
+      expect(networkImage.url, 'https://img');
+      expect(image.width, 50);
+      expect(image.height, 50);
+    });
+
+    testWidgets('local files should be files', (WidgetTester tester) async {
+      await tester
+          .pumpWidget(_boilerplate(const Markdown(data: '![alt](http.png)')));
+
+      final Image image =
+        tester.allWidgets.firstWhere((Widget widget) => widget is Image);
+      expect(image.image is FileImage, isTrue);
+    });
+
+    testWidgets('should work with local image files', (WidgetTester tester) async {
+      await tester
+          .pumpWidget(_boilerplate(const Markdown(data: '![alt](img.png#50x50)')));
+
+      final Image image =
+        tester.allWidgets.firstWhere((Widget widget) => widget is Image);
+      final FileImage fileImage = image.image;
+      expect(fileImage.file.path, 'img.png');
+      expect(image.width, 50);
+      expect(image.height, 50);
+    });
+
+    testWidgets('should show properly next to text', (WidgetTester tester) async {      
+      await tester
+          .pumpWidget(_boilerplate(const Markdown(data: 'Hello ![alt](img#50x50)')));
+
+      final RichText richText =
+        tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
+      TextSpan textSpan = richText.text;
+      expect(textSpan.text, 'Hello ');
+      expect(textSpan.style, isNotNull);
+    });
+
+    testWidgets('should work when nested in a link', (WidgetTester tester) async {
+      final List<String> tapResults = <String>[];
+      await tester.pumpWidget(_boilerplate(new Markdown(
+        data: '[![alt](https://img#50x50)](href)',
+        onTapLink: (value) => tapResults.add(value),
+      )));
+
+      final GestureDetector detector =
+        tester.allWidgets.firstWhere((Widget widget) => widget is GestureDetector);
+
+      detector.onTap();
+
+      expect(tapResults.length, 1);
+      expect(tapResults, everyElement('href'));
+    });
+
+    testWidgets('should work when nested in a link with text', (WidgetTester tester) async {
+      final List<String> tapResults = <String>[];
+      await tester.pumpWidget(_boilerplate(new Markdown(
+        data: '[Text before ![alt](https://img#50x50) text after](href)',
+        onTapLink: (value) => tapResults.add(value),
+      )));
+
+      final GestureDetector detector =
+        tester.allWidgets.firstWhere((Widget widget) => widget is GestureDetector);
+      detector.onTap();
+
+      final RichText firstTextWidget =
+        tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
+      final TextSpan firstSpan = firstTextWidget.text;
+      (firstSpan.recognizer as TapGestureRecognizer).onTap();
+
+      final RichText lastTextWidget =
+        tester.allWidgets.lastWhere((Widget widget) => widget is RichText);
+      final TextSpan lastSpan = lastTextWidget.text;
+      (lastSpan.recognizer as TapGestureRecognizer).onTap();
+
+      expect(firstSpan.children, null);
+      expect(firstSpan.text, 'Text before ');
+      expect(firstSpan.recognizer.runtimeType, equals(TapGestureRecognizer));
+
+      expect(lastSpan.children, null);
+      expect(lastSpan.text, ' text after');
+      expect(lastSpan.recognizer.runtimeType, equals(TapGestureRecognizer));
+
+      expect(tapResults.length, 3);
+      expect(tapResults, everyElement('href'));
+    });
+
+    testWidgets('should work alongside different links', (WidgetTester tester) async {
+      final List<String> tapResults = <String>[];
+      await tester.pumpWidget(_boilerplate(new Markdown(
+        data: '[Link before](firstHref)[![alt](https://img#50x50)](imageHref)[link after](secondHref)',
+        onTapLink: (value) => tapResults.add(value),
+      )));
+
+      final RichText firstTextWidget =
+        tester.allWidgets.firstWhere((Widget widget) => widget is RichText);
+      final TextSpan firstSpan = firstTextWidget.text;
+      (firstSpan.recognizer as TapGestureRecognizer).onTap();
+
+      final GestureDetector detector =
+        tester.allWidgets.firstWhere((Widget widget) => widget is GestureDetector);
+      detector.onTap();
+
+      final RichText lastTextWidget =
+        tester.allWidgets.lastWhere((Widget widget) => widget is RichText);
+      final TextSpan lastSpan = lastTextWidget.text;
+      (lastSpan.recognizer as TapGestureRecognizer).onTap();
+
+      expect(firstSpan.children, null);
+      expect(firstSpan.text, 'Link before');
+      expect(firstSpan.recognizer.runtimeType, equals(TapGestureRecognizer));
+
+      expect(lastSpan.children, null);
+      expect(lastSpan.text, 'link after');
+      expect(lastSpan.recognizer.runtimeType, equals(TapGestureRecognizer));
+
+      expect(tapResults.length, 3);
+      expect(tapResults, ['firstHref', 'imageHref', 'secondHref']);
+    });
   });
 
   testWidgets('HTML tag ignored ', (WidgetTester tester) async {
@@ -293,3 +418,19 @@ Widget _boilerplate(Widget child) {
     child: child,
   );
 }
+
+// Returns a mock HTTP client that responds with an image to all requests.
+ValueGetter<http.Client> createMockImageHttpClient = () {
+  return new http.MockClient((http.BaseRequest request) {
+    return new Future<http.Response>.value(
+        new http.Response.bytes(_transparentImage, 200, request: request));
+  });
+};
+
+const List<int> _transparentImage = const <int>[
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49,
+  0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06,
+  0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44,
+  0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D,
+  0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+];
