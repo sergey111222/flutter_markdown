@@ -137,7 +137,6 @@ class MarkdownBuilder implements md.NodeVisitor {
       : new TextSpan(
           style: _inlines.last.style,
           text: text.text.replaceAll('&amp;', '&'),
-          text: text.text,
           recognizer: _linkHandlers.isNotEmpty ? _linkHandlers.last : null,
         );
 
